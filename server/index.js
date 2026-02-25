@@ -530,18 +530,35 @@ app.get("/api/me", (req, res) => {
 });
 
 app.get("/api/products", async (req, res) => {
-    if (!pool) return res.status(500).json({ error: "Base de données non connectée" });
-    let client;
+    // DIAGNOSTIC EXTREME
     try {
-        // On utilise la même méthode que init-db qui fonctionne : obtenir un client explicite
-        client = await pool.connect();
-        const result = await client.query("SELECT * FROM products");
-        res.json(result.rows);
+        if (!pool) {
+            console.error("POOL EST NULL !");
+            return res.status(500).json({ error: "POOL IS NULL", details: "La connexion à la base de données n'a pas été initialisée." });
+        }
+        
+        console.log("Tentative de connexion pour /api/products...");
+        const client = await pool.connect();
+        console.log("Client connecté !");
+        
+        try {
+            console.log("Exécution de la requête SELECT...");
+            const result = await client.query("SELECT * FROM products");
+            console.log(`Requête réussie ! ${result.rowCount} produits trouvés.`);
+            res.json(result.rows);
+        } finally {
+            client.release();
+            console.log("Client relâché.");
+        }
     } catch (err) {
-        console.error("ERREUR RÉCUPÉRATION PRODUITS:", err);
-        res.status(500).json({ error: "Erreur DB: " + err.message });
-    } finally {
-        if (client) client.release();
+        console.error("ERREUR FATALE DANS /api/products :", err);
+        // On renvoie TOUT l'objet erreur pour voir ce qui se passe
+        res.status(500).json({ 
+            error: "Erreur serveur critique", 
+            message: err.message, 
+            stack: err.stack,
+            code: err.code 
+        });
     }
 });
 
