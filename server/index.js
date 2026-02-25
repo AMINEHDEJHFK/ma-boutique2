@@ -35,14 +35,21 @@ app.get('/*.html', (req, res) => {
 // Initialisation de la base de données PostgreSQL (Supabase)
 let pool;
 if (DATABASE_URL) {
+    // Supabase nécessite SSL en production, mais pas forcément en local si on n'utilise pas SSL
+    // Pour être sûr, on force SSL avec rejectUnauthorized: false pour Vercel/Supabase
     pool = new Pool({
         connectionString: DATABASE_URL,
-        ssl: {
-            rejectUnauthorized: false
-        }
+        ssl: { rejectUnauthorized: false }
     });
-    console.log("Connecté à la base de données PostgreSQL (Supabase).");
-    initializeDatabase();
+
+    // Tenter de se connecter tout de suite pour vérifier si ça marche et logger l'erreur
+    pool.connect().then(client => {
+        console.log("Connexion DB réussie !");
+        client.release();
+        initializeDatabase();
+    }).catch(err => {
+        console.error("ERREUR CRITIQUE DE CONNEXION DB:", err);
+    });
 } else {
     console.error("ERREUR: DATABASE_URL manquante dans le fichier .env ou sur Vercel !");
 }
