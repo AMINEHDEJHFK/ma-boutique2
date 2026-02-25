@@ -47,19 +47,19 @@ if (DATABASE_URL) {
     console.error("ERREUR: DATABASE_URL manquante dans le fichier .env ou sur Vercel !");
 }
 
-// Route pour initialiser la DB (utile pour Supabase la première fois)
+// Route pour initialiser la DB (FORCE l'ajout des produits)
 app.get("/api/init-db", async(req, res) => {
     if (!pool) return res.status(500).json({ error: "Base de données non connectée" });
     try {
-        await initializeDatabase();
-        res.json({ message: "Base de données initialisée avec succès (tables créées et produits insérés)." });
+        await initializeDatabase(true); // Passer true pour forcer
+        res.json({ message: "Base de données initialisée avec succès (produits forcés)." });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Erreur lors de l'initialisation: " + err.message });
     }
 });
 
-async function initializeDatabase() {
+async function initializeDatabase(force = false) {
     if (!pool) return;
     try {
         const client = await pool.connect();
@@ -84,9 +84,12 @@ async function initializeDatabase() {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )`);
 
-            // Insertion des produits par défaut s'ils n'existent pas
+            // Insertion des produits par défaut
             const res = await client.query("SELECT COUNT(*) as count FROM products");
-            if (res.rows[0].count === '0' || res.rows[0].count === 0) {
+            // Si on force, ou si la table est vide
+            if (force || res.rows[0].count === '0' || res.rows[0].count === 0) {
+                console.log("Insertion/Mise à jour des produits...");
+
                 const initialProducts = [
                     // --- VÊTEMENTS & MODE (10) ---
                     {
@@ -367,11 +370,10 @@ async function initializeDatabase() {
 
                 for (const p of initialProducts) {
                     await client.query(
-                        "INSERT INTO products (id, name, description, price, currency, image, stock) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO NOTHING",
-                        [p.id, p.name, p.description, p.price, p.currency, p.image, p.stock]
+                        "INSERT INTO products (id, name, description, price, currency, image, stock) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO UPDATE SET name = $2, description = $3, price = $4, image = $6", [p.id, p.name, p.description, p.price, p.currency, p.image, p.stock]
                     );
                 }
-                console.log("30 produits variés insérés dans Supabase.");
+                console.log("30 produits variés insérés/mis à jour dans Supabase.");
             }
         } finally {
             client.release();
@@ -520,7 +522,7 @@ app.get("/api/me", (req, res) => {
     res.json(req.user);
 });
 
-app.get("/api/products", async (req, res) => {
+app.get("/api/products", async(req, res) => {
     if (!pool) return res.status(500).json({ error: "Base de données non connectée" });
     try {
         const result = await pool.query("SELECT * FROM products");
