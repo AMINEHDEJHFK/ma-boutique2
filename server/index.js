@@ -333,7 +333,7 @@ app.get("/api/me", (req, res) => {
     res.json(req.user);
 });
 
-app.get("/api/products", requireAuth, async(req, res) => {
+app.get("/api/products", async (req, res) => {
     if (!pool) return res.status(500).json({ error: "Base de données non connectée" });
     try {
         const result = await pool.query("SELECT * FROM products");
