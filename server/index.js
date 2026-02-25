@@ -529,14 +529,19 @@ app.get("/api/me", (req, res) => {
     res.json(req.user);
 });
 
-app.get("/api/products", async(req, res) => {
+app.get("/api/products", async (req, res) => {
     if (!pool) return res.status(500).json({ error: "Base de données non connectée" });
+    let client;
     try {
-        const result = await pool.query("SELECT * FROM products");
+        // On utilise la même méthode que init-db qui fonctionne : obtenir un client explicite
+        client = await pool.connect();
+        const result = await client.query("SELECT * FROM products");
         res.json(result.rows);
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: "Erreur DB" });
+        console.error("ERREUR RÉCUPÉRATION PRODUITS:", err);
+        res.status(500).json({ error: "Erreur DB: " + err.message });
+    } finally {
+        if (client) client.release();
     }
 });
 
