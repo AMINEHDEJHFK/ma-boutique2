@@ -80,7 +80,8 @@ function updateAuthUI() {
     if (!state.user) {
         loginForm.classList.remove("hidden");
         userInfo.classList.add("hidden");
-        productsSection.classList.add("hidden"); // Cacher les produits si non connecté
+        // productsSection.classList.add("hidden"); // Ne plus cacher les produits !
+        productsSection.classList.remove("hidden"); // Toujours afficher les produits
         cartSection.classList.add("hidden"); // Cacher le panier si non connecté
     } else {
         loginForm.classList.add("hidden");
