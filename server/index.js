@@ -86,105 +86,292 @@ async function initializeDatabase() {
 
             // Insertion des produits par défaut s'ils n'existent pas
             const res = await client.query("SELECT COUNT(*) as count FROM products");
-            if (res.rows[0].count === '0') {
-                const initialProducts = [{
-                        id: "prod-1",
+            if (res.rows[0].count === '0' || res.rows[0].count === 0) {
+                const initialProducts = [
+                    // --- VÊTEMENTS & MODE (10) ---
+                    {
+                        id: "mode-1",
                         name: "Veste en Jean Vintage",
-                        description: "Une veste en jean classique, style vintage des années 90.",
+                        description: "Une veste en jean classique, style vintage des années 90, robuste et intemporelle.",
                         price: 4500,
                         currency: "eur",
                         image: "https://images.unsplash.com/photo-1576871333019-220ef346ddbb?w=800&q=80",
                         stock: 10
                     },
                     {
-                        id: "prod-2",
-                        name: "Sneakers Premium",
-                        description: "Baskets confortables et élégantes pour toutes les occasions.",
+                        id: "mode-2",
+                        name: "Sneakers Premium Blanches",
+                        description: "Baskets minimalistes en cuir vegan, confortables pour toutes les occasions.",
                         price: 8900,
                         currency: "eur",
-                        image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80",
-                        stock: 5
-                    },
-                    {
-                        id: "prod-3",
-                        name: "Sac à Main en Cuir",
-                        description: "Sac à main artisanal en cuir véritable, finition soignée.",
-                        price: 12000,
-                        currency: "eur",
-                        image: "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=800&q=80",
-                        stock: 3
-                    },
-                    {
-                        id: "prod-4",
-                        name: "Montre Minimaliste",
-                        description: "Design épuré et mécanisme de précision pour un look sophistiqué.",
-                        price: 15000,
-                        currency: "eur",
-                        image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80",
-                        stock: 7
-                    },
-                    {
-                        id: "prod-5",
-                        name: "Lunettes de Soleil",
-                        description: "Protection UV totale avec une monture élégante et légère.",
-                        price: 3500,
-                        currency: "eur",
-                        image: "https://images.unsplash.com/photo-1511499767390-90342f568952?w=800&q=80",
-                        stock: 12
-                    },
-                    {
-                        id: "prod-6",
-                        name: "Appareil Photo Vintage",
-                        description: "Capturez vos moments avec ce style argentique intemporel.",
-                        price: 25000,
-                        currency: "eur",
-                        image: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=800&q=80",
-                        stock: 2
-                    },
-                    {
-                        id: "prod-7",
-                        name: "Casque Audio Sans Fil",
-                        description: "Son haute fidélité avec réduction de bruit active.",
-                        price: 19900,
-                        currency: "eur",
-                        image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80",
-                        stock: 8
-                    },
-                    {
-                        id: "prod-8",
-                        name: "Plante Décorative Monstera",
-                        description: "Apportez une touche de nature à votre intérieur avec cette magnifique plante.",
-                        price: 2500,
-                        currency: "eur",
-                        image: "https://images.unsplash.com/photo-1614594975525-e45190c55d0b?w=800&q=80",
+                        image: "https://images.unsplash.com/photo-1549298916-b41d501d3772?w=800&q=80",
                         stock: 15
                     },
                     {
-                        id: "prod-9",
-                        name: "Enceinte Bluetooth",
-                        description: "Un son puissant et portable pour toutes vos aventures.",
-                        price: 7900,
+                        id: "mode-3",
+                        name: "Sac à Main en Cuir",
+                        description: "Sac à main artisanal en cuir véritable, finition soignée et durable.",
+                        price: 12000,
                         currency: "eur",
-                        image: "https://images.unsplash.com/photo-1608156639585-b3a032ef9689?w=800&q=80",
+                        image: "https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=800&q=80",
+                        stock: 5
+                    },
+                    {
+                        id: "mode-4",
+                        name: "Montre Minimaliste Noire",
+                        description: "Design épuré, cadran noir mat, mécanisme de précision quartz.",
+                        price: 15000,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1524592094714-0f0654e20314?w=800&q=80",
+                        stock: 8
+                    },
+                    {
+                        id: "mode-5",
+                        name: "Lunettes de Soleil Aviateur",
+                        description: "Protection UV400 avec une monture dorée élégante et légère.",
+                        price: 3500,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=800&q=80",
+                        stock: 20
+                    },
+                    {
+                        id: "mode-6",
+                        name: "T-shirt Coton Bio",
+                        description: "T-shirt basique blanc, 100% coton biologique, coupe ajustée.",
+                        price: 2500,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800&q=80",
+                        stock: 50
+                    },
+                    {
+                        id: "mode-7",
+                        name: "Sweat à Capuche Gris",
+                        description: "Sweat confortable et chaud, idéal pour les soirées fraîches.",
+                        price: 4900,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=800&q=80",
+                        stock: 12
+                    },
+                    {
+                        id: "mode-8",
+                        name: "Chemise à Carreaux",
+                        description: "Chemise flanelle rouge et noire, style bûcheron moderne.",
+                        price: 3900,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1553859943-a02c5418b798?w=800&q=80",
                         stock: 10
                     },
                     {
-                        id: "prod-10",
-                        name: "Cahier de Notes en Cuir",
-                        description: "Parfait pour vos croquis, pensées et projets créatifs.",
+                        id: "mode-9",
+                        name: "Bonnet en Laine Mérinos",
+                        description: "Bonnet doux et chaud, tricoté en laine mérinos de qualité.",
+                        price: 2900,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1576871337632-b9aef4c17ab9?w=800&q=80",
+                        stock: 25
+                    },
+                    {
+                        id: "mode-10",
+                        name: "Écharpe Cachemire",
+                        description: "Écharpe luxueuse en cachemire beige, douce et élégante.",
+                        price: 6500,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1520903920243-00d872a2d1c9?w=800&q=80",
+                        stock: 7
+                    },
+
+                    // --- TECH & GADGETS (10) ---
+                    {
+                        id: "tech-1",
+                        name: "Casque Audio Sans Fil",
+                        description: "Son haute fidélité avec réduction de bruit active et 30h d'autonomie.",
+                        price: 19900,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80",
+                        stock: 15
+                    },
+                    {
+                        id: "tech-2",
+                        name: "Appareil Photo Rétro",
+                        description: "Style argentique avec la technologie numérique moderne.",
+                        price: 45000,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=800&q=80",
+                        stock: 3
+                    },
+                    {
+                        id: "tech-3",
+                        name: "Enceinte Bluetooth Portable",
+                        description: "Son puissant à 360°, étanche et résistante aux chocs.",
+                        price: 7900,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=800&q=80",
+                        stock: 20
+                    },
+                    {
+                        id: "tech-4",
+                        name: "Montre Connectée Sport",
+                        description: "Suivi cardiaque, GPS, notifications et étanche 50m.",
+                        price: 22000,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=800&q=80",
+                        stock: 10
+                    },
+                    {
+                        id: "tech-5",
+                        name: "Clavier Mécanique RGB",
+                        description: "Switches bleus clicky, rétroéclairage personnalisable.",
+                        price: 11000,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1587829741301-dc798b91add1?w=800&q=80",
+                        stock: 8
+                    },
+                    {
+                        id: "tech-6",
+                        name: "Souris Ergonomique",
+                        description: "Conçue pour le confort, réduit la fatigue du poignet.",
+                        price: 5500,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=800&q=80",
+                        stock: 12
+                    },
+                    {
+                        id: "tech-7",
+                        name: "Batterie Externe 20000mAh",
+                        description: "Charge rapide pour tous vos appareils en déplacement.",
+                        price: 3500,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1609592424362-94462612d7b1?w=800&q=80",
+                        stock: 30
+                    },
+                    {
+                        id: "tech-8",
+                        name: "Support Ordinateur Alu",
+                        description: "Support pliable en aluminium pour MacBook et PC portables.",
+                        price: 4500,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=800&q=80",
+                        stock: 18
+                    },
+                    {
+                        id: "tech-9",
+                        name: "Lampe de Bureau LED",
+                        description: "Lampe moderne avec chargeur sans fil intégré.",
+                        price: 5900,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1534073828943-ef8010912984?w=800&q=80",
+                        stock: 10
+                    },
+                    {
+                        id: "tech-10",
+                        name: "Drone Caméra 4K",
+                        description: "Drone compact avec caméra stabilisée 4K, facile à piloter.",
+                        price: 55000,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1473968512647-3e447244af8f?w=800&q=80",
+                        stock: 2
+                    },
+
+                    // --- MAISON & DÉCO (10) ---
+                    {
+                        id: "deco-1",
+                        name: "Plante Monstera Deliciosa",
+                        description: "Grande plante d'intérieur facile d'entretien, apporte de la vie.",
+                        price: 3500,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1614594975525-e45190c55d0b?w=800&q=80",
+                        stock: 10
+                    },
+                    {
+                        id: "deco-2",
+                        name: "Vase en Céramique",
+                        description: "Vase fait main, design minimaliste et texture brute.",
+                        price: 2800,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1581783342308-f792ca11df53?w=800&q=80",
+                        stock: 8
+                    },
+                    {
+                        id: "deco-3",
+                        name: "Bougie Parfumée Soja",
+                        description: "Cire de soja naturelle, parfum bois de santal et vanille.",
                         price: 1800,
                         currency: "eur",
-                        image: "https://images.unsplash.com/photo-1531346878377-a5be20888e57?w=800&q=80",
+                        image: "https://images.unsplash.com/photo-1603006905003-be475563bc59?w=800&q=80",
+                        stock: 40
+                    },
+                    {
+                        id: "deco-4",
+                        name: "Coussin Velours Bleu",
+                        description: "Coussin décoratif doux en velours bleu nuit.",
+                        price: 2200,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1584100936595-c0654b55a2e6?w=800&q=80",
+                        stock: 15
+                    },
+                    {
+                        id: "deco-5",
+                        name: "Affiche Art Abstrait",
+                        description: "Impression haute qualité encadrée, 50x70cm.",
+                        price: 3500,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1580130601275-c9f22509689e?w=800&q=80",
                         stock: 20
+                    },
+                    {
+                        id: "deco-6",
+                        name: "Tapis Berbère",
+                        description: "Tapis style berbère en coton, motifs géométriques noirs et blancs.",
+                        price: 8500,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1575412619272-5a52d7083693?w=800&q=80",
+                        stock: 5
+                    },
+                    {
+                        id: "deco-7",
+                        name: "Miroir Rond Doré",
+                        description: "Grand miroir mural rond avec cadre fin en laiton.",
+                        price: 6900,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1618220179428-22790b461013?w=800&q=80",
+                        stock: 6
+                    },
+                    {
+                        id: "deco-8",
+                        name: "Service à Thé Japonais",
+                        description: "Set complet en fonte noire avec 4 tasses.",
+                        price: 5500,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1533036982928-8d003b8600d3?w=800&q=80",
+                        stock: 8
+                    },
+                    {
+                        id: "deco-9",
+                        name: "Horloge Murale Bois",
+                        description: "Horloge silencieuse en bois naturel, design scandinave.",
+                        price: 4200,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1563861826100-9cb868fdbe1c?w=800&q=80",
+                        stock: 12
+                    },
+                    {
+                        id: "deco-10",
+                        name: "Panier en Osier Tressé",
+                        description: "Panier de rangement pratique et esthétique.",
+                        price: 2400,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1591123120675-6f7f4a548130?w=800&q=80",
+                        stock: 25
                     }
                 ];
 
                 for (const p of initialProducts) {
                     await client.query(
-                        "INSERT INTO products (id, name, description, price, currency, image, stock) VALUES ($1, $2, $3, $4, $5, $6, $7)", [p.id, p.name, p.description, p.price, p.currency, p.image, p.stock]
+                        "INSERT INTO products (id, name, description, price, currency, image, stock) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO NOTHING",
+                        [p.id, p.name, p.description, p.price, p.currency, p.image, p.stock]
                     );
                 }
-                console.log("Produits par défaut insérés dans Supabase.");
+                console.log("30 produits variés insérés dans Supabase.");
             }
         } finally {
             client.release();
