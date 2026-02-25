@@ -5,6 +5,7 @@ const dotenv = require("dotenv");
 const session = require("express-session");
 const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
+const { Pool } = require("pg");
 
 dotenv.config();
 
@@ -16,102 +17,182 @@ app.set('trust proxy', 1);
 const PORT = process.env.PORT || 4000;
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-
-// === PRODUITS EN DUR POUR VERCEL (Sans base de données) ===
-const PRODUCTS_DB = [{
-        id: "prod-1",
-        name: "Veste en Jean Vintage",
-        description: "Une veste en jean classique, style vintage des années 90.",
-        price: 4500,
-        currency: "eur",
-        image: "https://images.unsplash.com/photo-1576871333019-220ef346ddbb?w=800&q=80",
-        stock: 10
-    },
-    {
-        id: "prod-2",
-        name: "Sneakers Premium",
-        description: "Baskets confortables et élégantes pour toutes les occasions.",
-        price: 8900,
-        currency: "eur",
-        image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80",
-        stock: 5
-    },
-    {
-        id: "prod-3",
-        name: "Sac à Main en Cuir",
-        description: "Sac à main artisanal en cuir véritable, finition soignée.",
-        price: 12000,
-        currency: "eur",
-        image: "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=800&q=80",
-        stock: 3
-    },
-    {
-        id: "prod-4",
-        name: "Montre Minimaliste",
-        description: "Design épuré et mécanisme de précision pour un look sophistiqué.",
-        price: 15000,
-        currency: "eur",
-        image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80",
-        stock: 7
-    },
-    {
-        id: "prod-5",
-        name: "Lunettes de Soleil",
-        description: "Protection UV totale avec une monture élégante et légère.",
-        price: 3500,
-        currency: "eur",
-        image: "https://images.unsplash.com/photo-1511499767390-90342f568952?w=800&q=80",
-        stock: 12
-    },
-    {
-        id: "prod-6",
-        name: "Appareil Photo Vintage",
-        description: "Capturez vos moments avec ce style argentique intemporel.",
-        price: 25000,
-        currency: "eur",
-        image: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=800&q=80",
-        stock: 2
-    },
-    {
-        id: "prod-7",
-        name: "Casque Audio Sans Fil",
-        description: "Son haute fidélité avec réduction de bruit active.",
-        price: 19900,
-        currency: "eur",
-        image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80",
-        stock: 8
-    },
-    {
-        id: "prod-8",
-        name: "Plante Décorative Monstera",
-        description: "Apportez une touche de nature à votre intérieur avec cette magnifique plante.",
-        price: 2500,
-        currency: "eur",
-        image: "https://images.unsplash.com/photo-1614594975525-e45190c55d0b?w=800&q=80",
-        stock: 15
-    },
-    {
-        id: "prod-9",
-        name: "Enceinte Bluetooth",
-        description: "Un son puissant et portable pour toutes vos aventures.",
-        price: 7900,
-        currency: "eur",
-        image: "https://images.unsplash.com/photo-1608156639585-b3a032ef9689?w=800&q=80",
-        stock: 10
-    },
-    {
-        id: "prod-10",
-        name: "Cahier de Notes en Cuir",
-        description: "Parfait pour vos croquis, pensées et projets créatifs.",
-        price: 1800,
-        currency: "eur",
-        image: "https://images.unsplash.com/photo-1531346878377-a5be20888e57?w=800&q=80",
-        stock: 20
-    }
-];
+const DATABASE_URL = process.env.DATABASE_URL;
 
 const CLIENT_DIR = path.join(__dirname, "..", "client");
 app.use(express.static(CLIENT_DIR));
+
+// Pour servir l'index.html sur la racine si express.static ne suffit pas avec Vercel
+app.get('/', (req, res) => {
+    res.sendFile(path.join(CLIENT_DIR, 'index.html'));
+});
+
+// Pour les fichiers HTML spécifiques
+app.get('/*.html', (req, res) => {
+    res.sendFile(path.join(CLIENT_DIR, req.path));
+});
+
+// Initialisation de la base de données PostgreSQL (Supabase)
+let pool;
+if (DATABASE_URL) {
+    pool = new Pool({
+        connectionString: DATABASE_URL,
+        ssl: {
+            rejectUnauthorized: false
+        }
+    });
+    console.log("Connecté à la base de données PostgreSQL (Supabase).");
+    initializeDatabase();
+} else {
+    console.error("ERREUR: DATABASE_URL manquante dans le fichier .env ou sur Vercel !");
+}
+
+// Route pour initialiser la DB (utile pour Supabase la première fois)
+app.get("/api/init-db", async(req, res) => {
+    if (!pool) return res.status(500).json({ error: "Base de données non connectée" });
+    try {
+        await initializeDatabase();
+        res.json({ message: "Base de données initialisée avec succès (tables créées et produits insérés)." });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Erreur lors de l'initialisation: " + err.message });
+    }
+});
+
+async function initializeDatabase() {
+    if (!pool) return;
+    try {
+        const client = await pool.connect();
+        try {
+            // Table des produits avec stock
+            await client.query(`CREATE TABLE IF NOT EXISTS products (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT,
+                price INTEGER NOT NULL,
+                currency TEXT NOT NULL,
+                image TEXT,
+                stock INTEGER DEFAULT 10
+            )`);
+
+            // Table des commandes
+            await client.query(`CREATE TABLE IF NOT EXISTS orders (
+                id TEXT PRIMARY KEY,
+                customer_email TEXT,
+                total_amount INTEGER,
+                status TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )`);
+
+            // Insertion des produits par défaut s'ils n'existent pas
+            const res = await client.query("SELECT COUNT(*) as count FROM products");
+            if (res.rows[0].count === '0') {
+                const initialProducts = [{
+                        id: "prod-1",
+                        name: "Veste en Jean Vintage",
+                        description: "Une veste en jean classique, style vintage des années 90.",
+                        price: 4500,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1576871333019-220ef346ddbb?w=800&q=80",
+                        stock: 10
+                    },
+                    {
+                        id: "prod-2",
+                        name: "Sneakers Premium",
+                        description: "Baskets confortables et élégantes pour toutes les occasions.",
+                        price: 8900,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80",
+                        stock: 5
+                    },
+                    {
+                        id: "prod-3",
+                        name: "Sac à Main en Cuir",
+                        description: "Sac à main artisanal en cuir véritable, finition soignée.",
+                        price: 12000,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=800&q=80",
+                        stock: 3
+                    },
+                    {
+                        id: "prod-4",
+                        name: "Montre Minimaliste",
+                        description: "Design épuré et mécanisme de précision pour un look sophistiqué.",
+                        price: 15000,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80",
+                        stock: 7
+                    },
+                    {
+                        id: "prod-5",
+                        name: "Lunettes de Soleil",
+                        description: "Protection UV totale avec une monture élégante et légère.",
+                        price: 3500,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1511499767390-90342f568952?w=800&q=80",
+                        stock: 12
+                    },
+                    {
+                        id: "prod-6",
+                        name: "Appareil Photo Vintage",
+                        description: "Capturez vos moments avec ce style argentique intemporel.",
+                        price: 25000,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=800&q=80",
+                        stock: 2
+                    },
+                    {
+                        id: "prod-7",
+                        name: "Casque Audio Sans Fil",
+                        description: "Son haute fidélité avec réduction de bruit active.",
+                        price: 19900,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80",
+                        stock: 8
+                    },
+                    {
+                        id: "prod-8",
+                        name: "Plante Décorative Monstera",
+                        description: "Apportez une touche de nature à votre intérieur avec cette magnifique plante.",
+                        price: 2500,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1614594975525-e45190c55d0b?w=800&q=80",
+                        stock: 15
+                    },
+                    {
+                        id: "prod-9",
+                        name: "Enceinte Bluetooth",
+                        description: "Un son puissant et portable pour toutes vos aventures.",
+                        price: 7900,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1608156639585-b3a032ef9689?w=800&q=80",
+                        stock: 10
+                    },
+                    {
+                        id: "prod-10",
+                        name: "Cahier de Notes en Cuir",
+                        description: "Parfait pour vos croquis, pensées et projets créatifs.",
+                        price: 1800,
+                        currency: "eur",
+                        image: "https://images.unsplash.com/photo-1531346878377-a5be20888e57?w=800&q=80",
+                        stock: 20
+                    }
+                ];
+
+                for (const p of initialProducts) {
+                    await client.query(
+                        "INSERT INTO products (id, name, description, price, currency, image, stock) VALUES ($1, $2, $3, $4, $5, $6, $7)", [p.id, p.name, p.description, p.price, p.currency, p.image, p.stock]
+                    );
+                }
+                console.log("Produits par défaut insérés dans Supabase.");
+            }
+        } finally {
+            client.release();
+        }
+    } catch (err) {
+        console.error("Erreur d'initialisation de la DB:", err);
+    }
+}
 
 // Pour servir l'index.html sur la racine si express.static ne suffit pas avec Vercel
 app.get('/', (req, res) => {
@@ -157,11 +238,10 @@ app.post("/webhook", express.raw({ type: "application/json" }), async(req, res) 
 
                     console.log(`Mise à jour du stock pour le produit ${productId}: -${quantity}`);
 
-                    // Simulation de mise à jour (pour Vercel sans DB)
-                    const product = PRODUCTS_DB.find(p => p.id === productId);
-                    if (product) {
-                        product.stock -= quantity;
-                        console.log(`Nouveau stock temporaire pour ${product.name}: ${product.stock}`);
+                    if (pool) {
+                        pool.query("UPDATE products SET stock = stock - $1 WHERE id = $2", [quantity, productId])
+                            .then(() => console.log(`Stock mis à jour avec succès pour ${productId}`))
+                            .catch(err => console.error(`Erreur lors de la mise à jour du stock pour ${productId}:`, err.message));
                     }
                 }
             }
@@ -253,9 +333,15 @@ app.get("/api/me", (req, res) => {
     res.json(req.user);
 });
 
-// Route pour lister les produits (depuis la liste en dur)
-app.get("/api/products", requireAuth, (req, res) => {
-    res.json(PRODUCTS_DB);
+app.get("/api/products", requireAuth, async(req, res) => {
+    if (!pool) return res.status(500).json({ error: "Base de données non connectée" });
+    try {
+        const result = await pool.query("SELECT * FROM products");
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Erreur DB" });
+    }
 });
 
 app.post("/api/checkout", requireAuth, async(req, res) => {
@@ -264,15 +350,24 @@ app.post("/api/checkout", requireAuth, async(req, res) => {
     if (!stripeSecretKey) return res.status(500).json({ error: "Clé Stripe manquante" });
     const stripe = require("stripe")(stripeSecretKey);
 
+    if (!pool) return res.status(500).json({ error: "Base de données non connectée" });
+
     try {
+        const productIds = items.map(i => i.id);
+        // PostgreSQL utilise $1, $2... pour les placeholders
+        const placeholders = productIds.map((_, i) => `$${i + 1}`).join(",");
+
+        const result = await pool.query(`SELECT * FROM products WHERE id IN (${placeholders})`, productIds);
+        const products = result.rows;
+
         const metadata = {};
         const lineItems = [];
 
         for (const item of items) {
-            const product = PRODUCTS_DB.find(p => p.id === item.id);
+            const product = products.find(p => p.id === item.id);
             if (!product) continue;
 
-            // Vérification du stock (simulé)
+            // Vérification du stock
             if (product.stock < item.quantity) {
                 return res.status(400).json({ error: `Stock insuffisant pour ${product.name} (Restant: ${product.stock})` });
             }
