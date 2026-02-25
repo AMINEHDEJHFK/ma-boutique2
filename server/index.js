@@ -47,6 +47,18 @@ if (DATABASE_URL) {
     console.error("ERREUR: DATABASE_URL manquante dans le fichier .env");
 }
 
+// Route temporaire pour forcer l'initialisation des produits
+app.get("/api/init-db", async (req, res) => {
+    if (!pool) return res.status(500).json({ error: "Base de données non connectée" });
+    try {
+        await initializeDatabase();
+        res.json({ message: "Base de données initialisée avec succès (produits insérés si absents)." });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Erreur lors de l'initialisation: " + err.message });
+    }
+});
+
 async function initializeDatabase() {
     if (!pool) return;
     try {
