@@ -5,7 +5,7 @@ const dotenv = require("dotenv");
 const session = require("express-session");
 const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
-const { Pool } = require("pg");
+const sqlite3 = require("sqlite3").verbose();
 
 dotenv.config();
 
@@ -17,14 +17,13 @@ app.set('trust proxy', 1);
 const PORT = process.env.PORT || 4000;
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const DATABASE_URL = process.env.DATABASE_URL;
 
 const CLIENT_DIR = path.join(__dirname, "..", "client");
 app.use(express.static(CLIENT_DIR));
 
 // Pour servir l'index.html sur la racine si express.static ne suffit pas avec Vercel
 app.get('/', (req, res) => {
-  res.sendFile(path.join(CLIENT_DIR, 'index.html'));
+    res.sendFile(path.join(CLIENT_DIR, 'index.html'));
 });
 
 // Pour les fichiers HTML spécifiques
@@ -32,61 +31,42 @@ app.get('/*.html', (req, res) => {
     res.sendFile(path.join(CLIENT_DIR, req.path));
 });
 
-// Initialisation de la base de données PostgreSQL
-let pool;
-if (DATABASE_URL) {
-    pool = new Pool({
-        connectionString: DATABASE_URL,
-        ssl: {
-            rejectUnauthorized: false
-        }
-    });
-    console.log("Connecté à la base de données PostgreSQL (Supabase).");
-    initializeDatabase();
-} else {
-    console.error("ERREUR: DATABASE_URL manquante dans le fichier .env");
-}
-
-// Route temporaire pour forcer l'initialisation des produits
-app.get("/api/init-db", async (req, res) => {
-    if (!pool) return res.status(500).json({ error: "Base de données non connectée" });
-    try {
-        await initializeDatabase();
-        res.json({ message: "Base de données initialisée avec succès (produits insérés si absents)." });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: "Erreur lors de l'initialisation: " + err.message });
+// Initialisation de la base de données SQLite
+const dbPath = path.join(__dirname, "database.sqlite");
+const db = new sqlite3.Database(dbPath, (err) => {
+    if (err) {
+        console.error("Erreur d'ouverture de la base de données:", err.message);
+    } else {
+        console.log("Connecté à la base de données SQLite.");
+        initializeDatabase();
     }
 });
 
-async function initializeDatabase() {
-    if (!pool) return;
-    try {
-        const client = await pool.connect();
-        try {
-            // Table des produits avec stock
-            await client.query(`CREATE TABLE IF NOT EXISTS products (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                description TEXT,
-                price INTEGER NOT NULL,
-                currency TEXT NOT NULL,
-                image TEXT,
-                stock INTEGER DEFAULT 10
-            )`);
+function initializeDatabase() {
+    db.serialize(() => {
+        // Table des produits avec stock
+        db.run(`CREATE TABLE IF NOT EXISTS products (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            price INTEGER NOT NULL,
+            currency TEXT NOT NULL,
+            image TEXT,
+            stock INTEGER DEFAULT 10
+        )`);
 
-            // Table des commandes
-            await client.query(`CREATE TABLE IF NOT EXISTS orders (
-                id TEXT PRIMARY KEY,
-                customer_email TEXT,
-                total_amount INTEGER,
-                status TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )`);
+        // Table des commandes
+        db.run(`CREATE TABLE IF NOT EXISTS orders (
+            id TEXT PRIMARY KEY,
+            customer_email TEXT,
+            total_amount INTEGER,
+            status TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
 
-            // Insertion des produits par défaut
-            const res = await client.query("SELECT COUNT(*) as count FROM products");
-            if (res.rows[0].count === '0') {
+        // Insertion des produits par défaut
+        db.get("SELECT COUNT(*) as count FROM products", (err, row) => {
+            if (row && row.count === 0) {
                 const initialProducts = [{
                         id: "prod-1",
                         name: "Veste en Jean Vintage",
@@ -179,19 +159,15 @@ async function initializeDatabase() {
                     }
                 ];
 
-                for (const p of initialProducts) {
-                    await client.query(
-                        "INSERT INTO products (id, name, description, price, currency, image, stock) VALUES ($1, $2, $3, $4, $5, $6, $7)", [p.id, p.name, p.description, p.price, p.currency, p.image, p.stock]
-                    );
-                }
+                const stmt = db.prepare("INSERT INTO products (id, name, description, price, currency, image, stock) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                initialProducts.forEach(p => {
+                    stmt.run(p.id, p.name, p.description, p.price, p.currency, p.image, p.stock);
+                });
+                stmt.finalize();
                 console.log("Produits par défaut insérés.");
             }
-        } finally {
-            client.release();
-        }
-    } catch (err) {
-        console.error("Erreur d'initialisation de la DB:", err);
-    }
+        });
+    });
 }
 
 // Middleware Stripe Webhook (AVANT express.json())
@@ -226,11 +202,13 @@ app.post("/webhook", express.raw({ type: "application/json" }), async(req, res) 
 
                     console.log(`Mise à jour du stock pour le produit ${productId}: -${quantity}`);
 
-                    if (pool) {
-                        pool.query("UPDATE products SET stock = stock - $1 WHERE id = $2", [quantity, productId])
-                            .then(() => console.log(`Stock mis à jour avec succès pour ${productId}`))
-                            .catch(err => console.error(`Erreur lors de la mise à jour du stock pour ${productId}:`, err.message));
-                    }
+                    db.run("UPDATE products SET stock = stock - ? WHERE id = ?", [quantity, productId], (err) => {
+                        if (err) {
+                            console.error(`Erreur lors de la mise à jour du stock pour ${productId}:`, err.message);
+                        } else {
+                            console.log(`Stock mis à jour avec succès pour ${productId}`);
+                        }
+                    });
                 }
             }
         } else {
@@ -321,15 +299,11 @@ app.get("/api/me", (req, res) => {
     res.json(req.user);
 });
 
-app.get("/api/products", requireAuth, async(req, res) => {
-    if (!pool) return res.status(500).json({ error: "Base de données non connectée" });
-    try {
-        const result = await pool.query("SELECT * FROM products");
-        res.json(result.rows);
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: "Erreur DB" });
-    }
+app.get("/api/products", requireAuth, (req, res) => {
+    db.all("SELECT * FROM products", [], (err, rows) => {
+        if (err) return res.status(500).json({ error: "Erreur DB" });
+        res.json(rows);
+    });
 });
 
 app.post("/api/checkout", requireAuth, async(req, res) => {
@@ -338,50 +312,48 @@ app.post("/api/checkout", requireAuth, async(req, res) => {
     if (!stripeSecretKey) return res.status(500).json({ error: "Clé Stripe manquante" });
     const stripe = require("stripe")(stripeSecretKey);
 
-    if (!pool) return res.status(500).json({ error: "Base de données non connectée" });
-
     try {
         const productIds = items.map(i => i.id);
-        // PostgreSQL utilise $1, $2... pour les placeholders
-        const placeholders = productIds.map((_, i) => `$${i + 1}`).join(",");
+        const placeholders = productIds.map(() => "?").join(",");
 
-        const result = await pool.query(`SELECT * FROM products WHERE id IN (${placeholders})`, productIds);
-        const products = result.rows;
+        db.all(`SELECT * FROM products WHERE id IN (${placeholders})`, productIds, async(err, products) => {
+            if (err) return res.status(500).json({ error: "Erreur DB" });
 
-        const metadata = {};
-        const lineItems = [];
+            const metadata = {};
+            const lineItems = [];
 
-        for (const item of items) {
-            const product = products.find(p => p.id === item.id);
-            if (!product) continue;
+            for (const item of items) {
+                const product = products.find(p => p.id === item.id);
+                if (!product) continue;
 
-            // Vérification du stock
-            if (product.stock < item.quantity) {
-                return res.status(400).json({ error: `Stock insuffisant pour ${product.name} (Restant: ${product.stock})` });
+                // Vérification du stock
+                if (product.stock < item.quantity) {
+                    return res.status(400).json({ error: `Stock insuffisant pour ${product.name} (Restant: ${product.stock})` });
+                }
+
+                metadata[`prod_${product.id}`] = product.id;
+                metadata[`qty_${product.id}`] = item.quantity;
+
+                lineItems.push({
+                    price_data: {
+                        currency: product.currency,
+                        product_data: { name: product.name, description: product.description },
+                        unit_amount: product.price
+                    },
+                    quantity: item.quantity
+                });
             }
 
-            metadata[`prod_${product.id}`] = product.id;
-            metadata[`qty_${product.id}`] = item.quantity;
-
-            lineItems.push({
-                price_data: {
-                    currency: product.currency,
-                    product_data: { name: product.name, description: product.description },
-                    unit_amount: product.price
-                },
-                quantity: item.quantity
+            const session = await stripe.checkout.sessions.create({
+                mode: "payment",
+                payment_method_types: ["card"],
+                line_items: lineItems,
+                metadata: metadata,
+                success_url: `${req.protocol}://${req.get("host")}/success.html`,
+                cancel_url: `${req.protocol}://${req.get("host")}/cancel.html`
             });
-        }
-
-        const session = await stripe.checkout.sessions.create({
-            mode: "payment",
-            payment_method_types: ["card"],
-            line_items: lineItems,
-            metadata: metadata,
-            success_url: `${req.protocol}://${req.get("host")}/success.html`,
-            cancel_url: `${req.protocol}://${req.get("host")}/cancel.html`
+            res.json({ url: session.url });
         });
-        res.json({ url: session.url });
     } catch (error) {
         console.error("Erreur Stripe/DB:", error);
         res.status(500).json({ error: "Erreur lors du paiement" });
