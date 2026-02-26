@@ -232,7 +232,8 @@ function renderCart() {
 
 async function loadProducts() {
     try {
-        const response = await fetch("/api/products");
+        // Ajout d'un timestamp pour éviter le cache du navigateur
+        const response = await fetch("/api/products?t=" + Date.now());
         if (!response.ok) {
             throw new Error("Erreur lors du chargement des produits");
         }
